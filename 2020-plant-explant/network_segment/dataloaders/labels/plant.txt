@@ -1,0 +1,4 @@
+0	__background__
+1	plant
+2	label
+3	ruler

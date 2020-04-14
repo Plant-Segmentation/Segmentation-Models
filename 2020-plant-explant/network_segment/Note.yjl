@@ -1,0 +1,9 @@
+python train.py --config config/config_pascal.json
+python train.py --config config/config_pascal.json --resume pretrained/resnet50-25c4b509.pth
+
+python inference.py --config config/config_pascal.json --model best_model.pth --images images_folder
+
+
+python infer_root_2.py --config config/config_root_2.json --model saved/PSPNet/PLANT_Root_step2/checkpoint-epoch100.pth --images */step1_preprocess --output */step2_1st_segment
+
+python infer_root_3.py --config config/config_root_3.json --model saved/PSPNet/PLANT_Root_step3/checkpoint-epoch150.pth --images */step2_preprocess --output */step2_2nd_segment
