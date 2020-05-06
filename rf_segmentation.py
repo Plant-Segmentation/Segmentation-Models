@@ -3,10 +3,11 @@
     https://github.com/dgriffiths3/ml_segmentation.git
 
     Modified script to accomodate the following -
-    1. parallel feature processing.
-    2. New features added.
-    2. model training parameters.
+    1. parallel feature processing
+    2. model training parameters
     3. resize test images and store the results.
+    Features added - 
+
 '''
 import cv2
 import numpy as np
@@ -42,18 +43,18 @@ def check_args(args):
     if args.classifier != "SVM" and args.classifier != "RF" and args.classifier != "GBC":
         raise ValueError("Classifier must be either SVM, RF or GBC")
 
-    if args.output_model.split('.')[-1] != "p":
-        raise ValueError("Model extension must be .p")
+    if args.output_model.split('.')[-1] != "pkl":
+        raise ValueError("Model extension must be .pkl")
 
     return args
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--image_dir" , help="Path to images", default='./dataset/AnnotationResult/GWAS-callus-shoot/category4/labels/', required=True)
-    parser.add_argument("-l", "--label_dir", help="Path to labels", deafult= './dataset/JPEGImages/GWAS-callus-shoot/trainval_images/', required=True)
-    parser.add_argument("-c", "--classifier", help="Classification model to use", default='RF', required = False)
-    parser.add_argument("-o", "--output_dir", help="Path to save the outputs.", default='./output_dir' required = False)
-    parser.add_argument("-o", "--output_model", help="Output model filename.", default='model8.pkl' required = True)
+    parser.add_argument("-i", "--image_dir" , help="Path to images", default= './dataset/JPEGImages/GWAS-callus-shoot/trainval_images/', required=False)
+    parser.add_argument("-l", "--label_dir", help="Path to labels", default='./dataset/AnnotationResult/GWAS-callus-shoot/category4/labels/', required=False)
+    parser.add_argument("-c", "--classifier", help="Classification model to use", default='RF', required=False)
+    parser.add_argument("-o", "--output_dir", help="Path to save the outputs.", default='./output_dir', required=False)
+    parser.add_argument("-m", "--output_model", help="Output model filename.", default='model8.pkl', required=False)
     parser.add_argument("-r", "--test_resize", help="Resize testing set images.", action='store_false')
     args = parser.parse_args()
     return check_args(args)
@@ -441,10 +442,10 @@ def test_model(X, y, model):
     return class_iou, pred
 
 
-def main(image_dir, label_dir, output_dir, classifier, test_resize):
+def main(image_dir, label_dir, output_dir, classifier, test_resize, output_model_file):
     start = time.time()
-    output_model_file = "model8.pkl"
 
+    # Training dataset.
     print("[INFO] Prepare training dataset.")
     image_list, label_list = read_data(image_dir, label_dir)
     X_train, y_train = create_training_dataset(image_list, label_list)
@@ -459,13 +460,13 @@ def main(image_dir, label_dir, output_dir, classifier, test_resize):
     print ('[INFO] Running inference for the training dataset.')
     test_model(X_train, y_train, model)
     
-    model = ""
     if os.path.getsize(output_model_file) > 0:      
         with open(output_model_file, "rb") as f:
             unpickler = pkl.Unpickler(f)
             model = unpickler.load()
     print("model name: ", output_model_file)
 
+    # Testing dataset.
     print ('\n--------------------------------')
     print("[INFO] Prepare testing dataset.")
     image_list, label_list = read_test_data(image_dir, label_dir, test_resize)
@@ -479,7 +480,8 @@ def main(image_dir, label_dir, output_dir, classifier, test_resize):
     print ('Stem class: ', iou[1])
     print ('Callus class: ', iou[2])
     print ('Shoot class: ', iou[3])
-    print("[INFO] Time taken to complete the process. ", time.time()-start)
+
+    print("\n[INFO] Time taken to complete the process. ", time.time()-start)
 
 
 if __name__ == "__main__":
@@ -489,4 +491,5 @@ if __name__ == "__main__":
     classifier = args.classifier
     output_dir = args.output_dir
     test_resize = args.test_resize
-    main(image_dir, label_dir, output_dir, classifier, test_resize)
+    output_model_file = args.output_model
+    main(image_dir, label_dir, output_dir, classifier, test_resize, output_model_file)
