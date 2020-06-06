@@ -1,3 +1,14 @@
+
+#!usr/bin/python
+
+###############################################################################
+__description__ = "Image segmentation using Random forest"
+__date__ = "05/02/2020"
+__maintainer__ = "Damanpreet Kaur"
+__version__ = 1.2
+###############################################################################
+
+
 '''
     Thanks to the wonderful implementation of random forest in Python.
     https://github.com/dgriffiths3/ml_segmentation.git
@@ -6,8 +17,6 @@
     1. parallel feature processing
     2. model training parameters
     3. resize test images and store the results.
-    Features added - 
-
 '''
 import cv2
 import numpy as np
@@ -23,12 +32,24 @@ from sklearn import metrics
 from sklearn.model_selection import train_test_split
 import time
 import mahotas as mt
-import plant
 from sklearn.utils.class_weight import compute_class_weight
 from skimage import filters
 from scipy.ndimage import gaussian_filter
 from skimage.io import imread, imsave
 import multiprocessing as mp
+
+# hyperparameters
+lbp_radius = 24 # local binary pattern neighbourhood
+h_neigh = 11 # haralick neighbourhood
+num_examples = 2000 # number of examples per image to use for training model
+img_h, img_w = 200, 200
+
+# random forest hyperparameters
+n_estimators = 20
+n_jobs = 8
+max_depth = 15
+min_samples_leaf = 12
+min_samples_split = 12
 
 print("No of processors: ", mp.cpu_count())
 
@@ -54,8 +75,10 @@ def parse_args():
     parser.add_argument("-l", "--label_dir", help="Path to labels", default='./dataset/AnnotationResult/GWAS-callus-shoot/category4/labels/', required=False)
     parser.add_argument("-c", "--classifier", help="Classification model to use", default='RF', required=False)
     parser.add_argument("-o", "--output_dir", help="Path to save the outputs.", default='./output_dir', required=False)
-    parser.add_argument("-m", "--output_model", help="Output model filename.", default='model8.pkl', required=False)
+    parser.add_argument("-m", "--output_model", help="Output model filename.", default='model9.pkl', required=False)
     parser.add_argument("-r", "--test_resize", help="Resize testing set images.", action='store_false')
+    parser.add_argument("--train_list", help="Txt file containing list of images used for training.", required=True)
+    parser.add_argument("--test_list", help="Txt file containing list of images used for testing.", required=True)
     args = parser.parse_args()
     return check_args(args)
 
@@ -64,11 +87,11 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
-def read_data(image_dir, label_dir):
+def read_data(train_list, image_dir, label_dir):
 
     print ('[INFO] Reading image data.')
 
-    filelist = open('./dataset/AnnotationResult/GWAS-callus-shoot/category4/train.txt').readlines()
+    filelist = open(train_list).readlines()
     image_list = []
     label_list = []
 
@@ -80,24 +103,24 @@ def read_data(image_dir, label_dir):
 
     return image_list, label_list
 
-def read_test_data(image_dir, label_dir, resize=True):
+def read_test_data(test_list, image_dir, label_dir, resize=True):
     '''
         Creating test dataset.
     '''
     print ('[INFO] Reading image data.')
 
-    filelist = open('./dataset/AnnotationResult/GWAS-callus-shoot/category4/val.txt').readlines()
+    filelist = open(test_list).readlines()
     image_list = []
     label_list = []
 
-    for file in filelist[:2]:
+    for file in filelist:
         file = file.strip()
         image = cv2.imread(os.path.join(image_dir, file+'.jpg'), 1)
         label = imread(os.path.join(label_dir, file+'.png'), pilmode = "P")
         
         if resize: 
-            image = cv2.resize(image, (200, 200))
-            label = cv2.resize(label, (200, 200))
+            image = cv2.resize(image, (img_w, img_h))
+            label = cv2.resize(label, (img_w, img_h))
 
         image_list.append(image)
         label_list.append(label)
@@ -166,11 +189,6 @@ def create_binary_pattern(img, p, r):
     return (lbp-np.min(lbp))/(np.max(lbp)-np.min(lbp)) * 255
 
 def create_features(i, return_dict_features, return_dict_labels, img, img_gray, img_lab, img_hsv, label, train=True, trainval=False):
-
-    lbp_radius = 24 # local binary pattern neighbourhood
-    h_neigh = 11 # haralick neighbourhood
-    num_examples = 2000 # number of examples per image to use for training model
-
     lbp_points = lbp_radius*8
     h_ind = int((h_neigh - 1)/ 2)
     
@@ -221,18 +239,10 @@ def create_features(i, return_dict_features, return_dict_labels, img, img_gray, 
     else:
         labels = None
 
-    # check how to combine features and labels?
-    print(features.shape)
-    print(labels.shape)
     return_dict_features[i] = features
     return_dict_labels[i] = labels
 
 def create_features1(i, return_dict_features1, return_dict_labels, img, img_gray, img_lab, img_hsv, label, train=True, trainval=False):
-
-    lbp_radius = 24 # local binary pattern neighbourhood
-    h_neigh = 11 # haralick neighbourhood
-    num_examples = 2000 # number of examples per image to use for training model
-
     lbp_points = lbp_radius*8
     h_ind = int((h_neigh - 1)/ 2)
     
@@ -283,9 +293,6 @@ def create_features1(i, return_dict_features1, return_dict_labels, img, img_gray
     else:
         labels = None
 
-    # check how to combine features and labels?
-    print(features.shape)
-    print(labels.shape)
     return_dict_features1[i] = features
     return_dict_labels[i] = labels
 
@@ -304,15 +311,10 @@ def create_training_dataset(image_list, label_list):
     jobs = []
 
     for i, img in enumerate(image_list):
-        print(label_list[i])
-        # dividing jobs to save features into 2 dictionaries.
+        # dividing jobs to save features into 2 dictionaries. 
         if i<200: p=mp.Process(target=create_features, args=(i, return_dict_features, return_dict_labels, img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.cvtColor(img, cv2.COLOR_BGR2LAB), cv2.cvtColor(img, cv2.COLOR_BGR2HSV), label_list[i]))
         if i>=200: p=mp.Process(target=create_features1, args=(i, return_dict_features1, return_dict_labels, img, cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.cvtColor(img, cv2.COLOR_BGR2LAB), cv2.cvtColor(img, cv2.COLOR_BGR2HSV), label_list[i]))
         jobs.append(p)
-        
-
-    print(len(jobs))
-    print(mp.cpu_count())
 
     for i in chunks(jobs, 50):
         for j in i:
@@ -320,6 +322,7 @@ def create_training_dataset(image_list, label_list):
         for j in i:
             j.join()
 
+    # X = np.array(list(return_dict_features.values()))
     X = np.vstack((np.array(list(return_dict_features.values())), np.array(list(return_dict_features1.values()))))
     y = np.array(list(return_dict_labels.values()))
 
@@ -351,9 +354,8 @@ def create_testing_dataset(image_list, label_list, model, output_dir):
 
     iou = []
     for i in range(len(X)):
-        import pdb; pdb.set_trace()
         try:
-            class_iou, pred = test_model(np.squeeze(X[i], axis=0), np.squeeze(y[i], axis=0), model)
+            class_iou, pred = test_model(X[i], y[i], model)
             pred = cv2.reshape(pred, (label_list[i].shape[1], label_list[i].shape[0]))
             cv2.imwrite(output_dir+'pred_'+str(i+1)+'.png', pred)
             cv2.imwrite(output_dir+'label_'+str(i+1)+'.png', label_list[i])
@@ -376,20 +378,20 @@ def train_model(X, y, classifier):
     elif classifier == "RF":
         from sklearn.ensemble import RandomForestClassifier
         print ('[INFO] Training Random Forest model.')
+
         rf_params = {
-            'bootstrap': True, #notice the difference between estimators and fix that. use bootstrap False.
-            'n_estimators': 20, 
+            'bootstrap': True, 
+            'n_estimators': n_estimators, 
             'random_state': 42, 
             'verbose': 2, 
-            'n_jobs': 8, 
-            #'max_features': 0.7,
-            'max_depth': 15,  
-            'min_samples_leaf': 12,
-            'min_samples_split': 12, 
+            'n_jobs': n_jobs, 
+            'max_depth': max_depth,  
+            'min_samples_leaf': min_samples_leaf,
+            'min_samples_split': min_samples_split, 
             'verbose': 0, 
             'warm_start': False,
             'min_weight_fraction_leaf': 0.0,
-            'class_weight': 'balanced_subsample', #compute_class_weight("balanced", 4, y), 
+            'class_weight': 'balanced_subsample',  
             'criterion': 'gini'
         }
 
@@ -447,7 +449,7 @@ def main(image_dir, label_dir, output_dir, classifier, test_resize, output_model
 
     # Training dataset.
     print("[INFO] Prepare training dataset.")
-    image_list, label_list = read_data(image_dir, label_dir)
+    image_list, label_list = read_data(args.train_list, image_dir, label_dir)
     X_train, y_train = create_training_dataset(image_list, label_list)
     
     print("[INFO] Model training started.")
@@ -469,7 +471,7 @@ def main(image_dir, label_dir, output_dir, classifier, test_resize, output_model
     # Testing dataset.
     print ('\n--------------------------------')
     print("[INFO] Prepare testing dataset.")
-    image_list, label_list = read_test_data(image_dir, label_dir, test_resize)
+    image_list, label_list = read_test_data(args.test_list, image_dir, label_dir, test_resize)
     iou = create_testing_dataset(image_list, label_list, model, output_dir)
   
     print ('[INFO] Running inference for the testing dataset.')
