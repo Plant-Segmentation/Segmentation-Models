@@ -86,6 +86,9 @@ def _convert_dataset(dataset_split):
 
 
 def main():
+  if not os.path.exists(FLAGS.output_dir):
+    os.mkdir(FLAGS.output_dir)
+    
   print("entering main")
   dataset_splits = tf.gfile.Glob(os.path.join(FLAGS.list_folder, '*.txt'))
   print("Dataset splits: ", dataset_splits)
