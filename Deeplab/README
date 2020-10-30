@@ -1,0 +1,124 @@
+README
+
+1. Prepare dataset 
+
+Preprocess the Dataset to convert them into TFRecords
+a) Split the dataset into classes
+    - train.txt
+    - trainval.txt
+    
+b) generate TFRecords (remember label format - should be pixalated image saved in raw format)
+  i)  use the script - dataset/remove_gt_colormap.py
+  
+  ii) 
+    cd datasets/
+
+    run the command -
+    python ./build_plant_data.py \
+  --image_folder="./Plant-data/JPEG" \
+  --semantic_segmentation_folder="./Plant-data/AnnotationResult/category4/labels_gray" \
+  --list_folder="./Plant-data/AnnotationResult/category4/Segmentation-labels/" \
+  --image_format="jpg" \
+  --output_dir="./Plant-data/tfrecord"
+
+  ** No of training examples - 102 (80% of 127)
+  ** No of trainingval examples - 25 (20% of 127)
+
+  2. Add the dataset information in the data_generator file. Run the shell script and pass the required parameters in the below form.
+    cd datasets/
+
+    bash data_generator.sh 'dataset_name' train_dataset_size val_dataset_size num_classes ignore_label
+
+    Verify the data_generator.py file created after this.
+
+    _INVITRO_INFORMATION = DatasetDescriptor(
+        splits_to_sizes={
+            'train': 102,  # num of samples in images/training
+            'trainval': 25,  # num of samples in images/validation
+        },
+        num_classes=4,
+        ignore_label=255,
+    )
+
+    _DATASETS_INFORMATION = {
+        'invitro': _INVITRO_INFORMATION,
+    }
+
+    cd ..
+
+    Run the data_generator.py file.
+    datasets/data_generator.py
+
+  3. Modify the Colormap Configuration for the dataset:
+    cd utils/
+
+    bash get_dataset_colormap.sh 'invitro' num_classes
+
+    cd ..
+
+    Run the get_dataset_colormap.py file.
+    utils/get_dataset_colormap.py
+
+    Note: Name of dataset == _IN_VITRO
+    use this function - label_to_color_image(label, dataset=_IN_VITRO)
+
+  4. Since we have imbalanced dataset, modify train_utils.py to assign weights for different classes.
+    not_ignore_mask = \
+                tf.to_float(tf.equal(scaled_labels, 0))*cfg.weights[0] + \
+                tf.to_float(tf.equal(scaled_labels, 1))*cfg.weights[1] + \
+                tf.to_float(tf.equal(scaled_labels, 2))*cfg.weights[2] + \
+                tf.to_float(tf.equal(scaled_labels, 3))*cfg.weights[3] + \
+                tf.to_float(tf.equal(scaled_labels, ignore_label))*cfg.weights[4]
+
+    Add configuration in config_plant.py
+    find weights for each class and ad to the config/config_plant.py file.
+
+5. In train.py
+    modify the hyperparameters in the train and common.py script/
+
+    add the slim path in the file.
+    export PYTHONPATH=$PYTHONPATH:`pwd`:`pwd`/slim
+
+    To train the model, use -
+    python deeplab/train.py
+  
+For inference:
+
+Prerequisites - Python3, anaconda
+
+For installing python, please follow the tutorial here.
+https://realpython.com/installing-python/
+
+1.  Please follow the following steps.
+
+    i.  conda create -n deeplab python=3.6
+        conda activate deeplab
+
+        pip install tensorflow-gpu==1.14
+        pip install Pillow
+        pip install PyYAML
+        pip install numpy 
+        pip install opencv-python
+        pip install scipy
+        #pip install matplotlib
+
+    
+2.  Create directories in the following structure -
+    - deeplab
+    	- dataset
+        	- JPEG
+            
+    Explanation: Create a directory 'dataset' in the 'deeplab' folder. 
+    Inside the 'dataset' folder, create directory - 'JPEG'.
+
+2.  Create a file 'test.txt' in the 'dataset/Segmentation-labels/' directory. (A test file is present in the folder.)
+
+    Format of test.txt - (Please do not add extension)
+    BESC-276_2017.0_0.5_GWAS 6.5_2018-08-29_111451
+    KLNE-20-4_2521.0_0.5_GWAS 7.3_2018-10-17_123915
+
+3.  Run the script python deeplab/inference.py
+
+4.  The output labels are present in the folder -
+    
+    /dataset/labels/

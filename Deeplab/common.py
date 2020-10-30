@@ -47,7 +47,7 @@ flags.DEFINE_integer('logits_kernel_size', 1,
 flags.DEFINE_string('model_variant', 'xception_65', 
                     'DeepLab model variant.')
 
-flags.DEFINE_multi_float('image_pyramid', [0.75, 1],
+flags.DEFINE_multi_float('image_pyramid', [1, 0.75], #[1, 1.25],
                          'Input scales for multi-scale feature extraction.')
 
 flags.DEFINE_boolean('add_image_level_feature', True,

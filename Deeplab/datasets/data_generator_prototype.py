@@ -1,4 +1,72 @@
+# Copyright 2018 The TensorFlow Authors All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Wrapper for providing semantic segmentaion data.
 
+The SegmentationDataset class provides both images and annotations (semantic
+segmentation and/or instance segmentation) for TensorFlow. Currently, we
+support the following datasets:
+
+1. PASCAL VOC 2012 (http://host.robots.ox.ac.uk/pascal/VOC/voc2012/).
+
+PASCAL VOC 2012 semantic segmentation dataset annotates 20 foreground objects
+(e.g., bike, person, and so on) and leaves all the other semantic classes as
+one background class. The dataset contains 1464, 1449, and 1456 annotated
+images for the training, validation and test respectively.
+
+2. Cityscapes dataset (https://www.cityscapes-dataset.com)
+
+The Cityscapes dataset contains 19 semantic labels (such as road, person, car,
+and so on) for urban street scenes.
+
+3. ADE20K dataset (http://groups.csail.mit.edu/vision/datasets/ADE20K)
+
+The ADE20K dataset contains 150 semantic labels both urban street scenes and
+indoor scenes.
+
+4. COCO dataset
+
+COCO dataset consists of 90 foreground objects and leaves all the other semantic labels
+as one background class. The dataset consist of 118287, and 5000 annotated images
+for training and validation respectively.
+
+References:
+  M. Everingham, S. M. A. Eslami, L. V. Gool, C. K. I. Williams, J. Winn,
+  and A. Zisserman, The pascal visual object classes challenge a retrospective.
+  IJCV, 2014.
+
+  M. Cordts, M. Omran, S. Ramos, T. Rehfeld, M. Enzweiler, R. Benenson,
+  U. Franke, S. Roth, and B. Schiele, "The cityscapes dataset for semantic urban
+  scene understanding," In Proc. of CVPR, 2016.
+
+  B. Zhou, H. Zhao, X. Puig, S. Fidler, A. Barriuso, A. Torralba, "Scene Parsing
+  through ADE20K dataset", In Proc. of CVPR, 2017.
+"""
+
+import argparse
+
+parser = argparse.ArgumentParser(description='')
+parser.add_argument('dataset_name', help='Name of the dataset.')
+parser.add_argument('train', help='Training dataset count.')
+parser.add_argument('val', help='Validation dataset count.')
+parser.add_argument('num_classes', help='Number of classes.')
+parser.add_argument('ignore_label', help='Ignore label (in most cases this will be 255).')
+args = parser.parse_args()
+
+
+with open('data_generator.py', 'w') as f:
+  f.write('''
 # Copyright 2018 The TensorFlow Authors All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,11 +150,16 @@ DatasetDescriptor = collections.namedtuple(
 #     num_classes=4,
 #     ignore_label=255,
 # )
-_INVITRO_INFORMATION = DatasetDescriptor( splits_to_sizes={ 'train':215, 'val':9 }, num_classes=4, ignore_label=255, )
-
-_DATASETS_INFORMATION = {'invitro': _INVITRO_INFORMATION }
+''')
 
 
+  descriptor_str = "_"+args.dataset_name.upper()+"_INFORMATION"+" = DatasetDescriptor( splits_to_sizes={ 'train':"+args.train+", 'val':"+args.val+" }, num_classes="+args.num_classes+", ignore_label="+args.ignore_label+", )"
+  f.write(descriptor_str + "\n\n")
+
+  dataset_info = "_DATASETS_INFORMATION = {'"+args.dataset_name.lower()+"': "+"_"+args.dataset_name.upper()+"_INFORMATION }"
+  f.write(dataset_info+"\n\n")
+
+  f.write('''
 # Default file pattern of TFRecord of TensorFlow Example.
 _FILE_PATTERN = '%s-*'
 
@@ -342,4 +415,4 @@ class Dataset(object):
     file_pattern = os.path.join(self.dataset_dir,
                                 file_pattern % self.split_name)
     return tf.gfile.Glob(file_pattern)
-  
+  ''')    

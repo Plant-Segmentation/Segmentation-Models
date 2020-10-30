@@ -1,4 +1,27 @@
+# Copyright 2018 The TensorFlow Authors All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
 
+import argparse
+parser = argparse.ArgumentParser(description='Dataset colormap.')
+parser.add_argument('dataset_name', help='Name of the dataset.')
+parser.add_argument('num_classes', help='Number of classes.')
+args = parser.parse_args()
+
+
+with open('get_dataset_colormap.py', 'w') as f:
+  f.write('''
 # Copyright 2018 The TensorFlow Authors All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,9 +59,11 @@ _MAPILLARY_VISTAS = 'mapillary_vistas'
 _PASCAL = 'pascal'
 _CATEGORY4 = 'category4'
 _COCO = 'coco'
-_INVITRO = 'invitro'
+''')
 
+  f.write("_" + args.dataset_name.upper() + " = '" + args.dataset_name.lower() + "'\n")
 
+  f.write('''\n
 # Max number of entries in the colormap for each dataset.
 _DATASET_MAX_ENTRIES = {
 _ADE20K: 151,
@@ -46,9 +71,12 @@ _CITYSCAPES: 256,
 _MAPILLARY_VISTAS: 66,
 _PASCAL: 256,
 _CATEGORY4: 4,
-_COCO: 256,
-_INVITRO: 4,}
+_COCO: 256,''')
 
+  f.write(
+    "\n_" + args.dataset_name.upper() + ": " + args.num_classes + ",}\n")
+
+  f.write('''
 def create_ade20k_label_colormap():
   """Creates a label colormap used in ADE20K segmentation benchmark.
 
@@ -403,7 +431,9 @@ def create_label_colormap(dataset=_PASCAL):
     return create_plant_category4_colormap()
   elif dataset == _COCO:
     return create_pascal_label_colormap()
-  elif dataset == _INVITRO:
+''')
+  f.write("  elif dataset == _" + args.dataset_name.upper() + ":")
+  f.write('''
     return create_pascal_label_colormap()
   else:
     raise ValueError('Unsupported dataset.')
@@ -439,3 +469,4 @@ def label_to_color_image(label, dataset=_PASCAL):
 
 def get_dataset_colormap_max_entries(dataset):
   return _DATASET_MAX_ENTRIES[dataset]
+''')

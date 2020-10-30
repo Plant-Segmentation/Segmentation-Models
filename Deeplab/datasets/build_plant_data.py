@@ -9,17 +9,17 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('image_folder',
-                           './Plant-data/JPEG',
+                           './Plant-data/InVitro-JPEG',
                            'Folder containing images.')
 
 tf.app.flags.DEFINE_string(
     'semantic_segmentation_folder',
-    './Plant-data/AnnotationResult/category4/labels_gray',
+    './Plant-data/AnnotationResult/labels',
     'Folder containing semantic segmentation annotations.')
 
 tf.app.flags.DEFINE_string(
     'list_folder',
-    './Plant-data/AnnotationResult/category4/Segmentation-labels',
+    './Plant-data/AnnotationResult/Segmentation-labels',
     'Folder containing lists for training and validation')
 
 tf.app.flags.DEFINE_string(
@@ -44,6 +44,7 @@ def _convert_dataset(dataset_split):
   num_images = len(filenames)
   num_per_shard = int(math.ceil(num_images / float(_NUM_SHARDS)))
 
+  print("reading image.")
   image_reader = build_data.ImageReader('jpg', channels=3)
   label_reader = build_data.ImageReader('png', channels=1)
 
@@ -55,32 +56,28 @@ def _convert_dataset(dataset_split):
       start_idx = shard_id * num_per_shard
       end_idx = min((shard_id + 1) * num_per_shard, num_images)
       for i in range(start_idx, end_idx):
-        print(filenames)
         sys.stdout.write('\r>> Converting image %d/%d shard %d' % (
             i + 1, len(filenames), shard_id))
         sys.stdout.flush()
-        # Read the image.
+        
+	      # Read the image.
         image_filename = os.path.join(
             FLAGS.image_folder, filenames[i] + '.' + FLAGS.image_format)
         image_data = tf.gfile.FastGFile(image_filename, 'rb').read()
         height, width = image_reader.read_image_dims(image_data)
-        # Read the semantic segmentation annotation.
+        print("image read.")
+
+	      # Read the semantic segmentation annotation.
         seg_filename = os.path.join(
             FLAGS.semantic_segmentation_folder,
             filenames[i] + '.' + FLAGS.label_format)
         seg_data = tf.gfile.FastGFile(seg_filename, 'rb').read()
-        # print(seg_data)
-        # import pdb; pdb.set_trace()
-        # import scipy.misc as smisc
-        # seg_data = smisc.imread(seg_filename, mode='P')
-        # seg_data = seg_data.tostring()
-        # print(seg_data)
-        
-        # import pdb; pdb.set_trace()
         seg_height, seg_width = label_reader.read_image_dims(seg_data)
         if height != seg_height or width != seg_width:
           raise RuntimeError('Shape mismatched between image and label.')
-        # Convert to tf example.
+        print("Label read.")
+	
+	      # Convert to tf example.
         example = build_data.image_seg_to_tfexample(
             image_data, filenames[i], height, width, seg_data)
         tfrecord_writer.write(example.SerializeToString())

@@ -36,7 +36,7 @@ flags.DEFINE_string('master', '', 'BNS name of the tensorflow server')
 
 flags.DEFINE_string('eval_logdir', 'eval/', 'Where to write the event logs.')
 
-flags.DEFINE_string('checkpoint_dir', 'best_chkpt7/', 'Directory of model checkpoints.')
+flags.DEFINE_string('checkpoint_dir', './deeplab/checkpoints/', 'Directory of model checkpoints.')
 
 # Settings for evaluating the model.
 
@@ -72,10 +72,10 @@ flags.DEFINE_integer(
 
 # Dataset settings.
 
-flags.DEFINE_string('dataset', 'category4',
+flags.DEFINE_string('dataset', 'invitro',
                     'Name of the segmentation dataset.')
 
-flags.DEFINE_string('eval_split', 'trainval',
+flags.DEFINE_string('eval_split', 'val',
                     'Which split of the dataset used for evaluation')
 
 flags.DEFINE_string('dataset_dir', './deeplab/datasets/Plant-data/tfrecord', 'Where the dataset reside.')

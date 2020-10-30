@@ -18,7 +18,7 @@
 See model.py for more details and usage.
 """
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 import os.path
 import time
@@ -40,7 +40,7 @@ flags.DEFINE_string('master', '', 'BNS name of the tensorflow server')
 
 flags.DEFINE_string('vis_logdir', './deeplab/vis/', 'Where to write the event logs.')
 
-flags.DEFINE_string('checkpoint_dir', './xception/', 'Directory of model checkpoints.')
+flags.DEFINE_string('checkpoint_dir', './deeplab/checkpoints/', 'Directory of model checkpoints.')
 
 # Settings for visualizing the model.
 
@@ -76,10 +76,10 @@ flags.DEFINE_integer(
 
 # Dataset settings.
 
-flags.DEFINE_string('dataset', 'category4',
+flags.DEFINE_string('dataset', 'invitro',
                     'Name of the segmentation dataset.')
 
-flags.DEFINE_string('vis_split', 'trainval',
+flags.DEFINE_string('vis_split', 'val',
                     'Which split of the dataset used for visualizing results')
 
 flags.DEFINE_string('dataset_dir', './deeplab/datasets/Plant-data/tfrecord', 'Where the dataset reside.')
@@ -311,8 +311,7 @@ def main(unused_argv):
         predict, labels, dataset.num_of_classes, weights=weights)
     
     from deeplab import my_metrics    
-    iou_v, update_op = my_metrics.iou(
-        predict, labels, dataset.num_of_classes, weights=weights)
+    iou_v, update_op = my_metrics.iou(predict, labels, dataset.num_of_classes, weights=weights)
 
     if FLAGS.min_resize_value and FLAGS.max_resize_value:
       # Only support batch_size = 1, since we assume the dimensions of original

@@ -17,7 +17,8 @@
 See model.py for more details and usage.
 """
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 import six
 import tensorflow as tf
 from tensorflow.python.ops import math_ops
@@ -30,12 +31,14 @@ import numpy as np
 import subprocess
 import sys
 import shutil
+import matplotlib.pyplot as plt
+
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
 # Settings for multi-GPUs/multi-replicas training.
 
-flags.DEFINE_integer('num_clones', 1, 'Number of clones to deploy.') #run on single gpu
+flags.DEFINE_integer('num_clones', 2, 'Number of clones to deploy.') #run on single gpu
 
 flags.DEFINE_boolean('clone_on_cpu', False, 'Use CPUs to deploy clones.')
 
@@ -55,7 +58,7 @@ flags.DEFINE_integer('task', 0, 'The task ID.')
 
 # Settings for logging.
 
-flags.DEFINE_string('train_logdir', "xception/",
+flags.DEFINE_string('train_logdir', "deeplab/checkpoints/",
                     'Where the checkpoint and logs are stored.')
 
 flags.DEFINE_integer('log_steps', 10,
@@ -79,24 +82,24 @@ flags.DEFINE_string('profile_logdir', None,
 
 # Settings for training strategy.
 
-flags.DEFINE_enum('learning_policy', 'step', ['poly', 'step'],
+flags.DEFINE_enum('learning_policy', 'poly', ['poly', 'step'],
                   'Learning rate policy for training.')
 
 # Use 0.007 when training on PASCAL augmented training set, train_aug. When
 # fine-tuning on PASCAL trainval set, use learning rate=0.0001.
-flags.DEFINE_float('base_learning_rate', 0.00007, #0.00025,
+flags.DEFINE_float('base_learning_rate', 0.0001, #0.00025,
                    'The base learning rate for model training.')
 
 flags.DEFINE_float('learning_rate_decay_factor', 0.1,
                    'The rate to decay the base learning rate.')
 
-flags.DEFINE_integer('learning_rate_decay_step', 2000,
+flags.DEFINE_integer('learning_rate_decay_step', 1000,
                      'Decay the base learning rate at a fixed step.')
 
 flags.DEFINE_float('learning_power', 0.9,
                    'The power value used in the poly learning policy.')
 
-flags.DEFINE_integer('training_number_of_steps', int(20000),
+flags.DEFINE_integer('training_number_of_steps', int(42000),
                      'The number of steps used for training')
 
 flags.DEFINE_float('momentum', 0.9, 'The momentum value to use')
@@ -112,7 +115,7 @@ flags.DEFINE_integer('train_batch_size', 2,
 flags.DEFINE_float('weight_decay', 0.0001,
                    'The value of the weight decay for training.')
 
-flags.DEFINE_list('train_crop_size', '513,513',
+flags.DEFINE_list('train_crop_size', '531,531',
                   'Image crop size [height, width] during training.')
 
 flags.DEFINE_float(
@@ -133,14 +136,14 @@ flags.DEFINE_float(
     'Probability to keep each path in the NAS cell when training.')
 # Settings for fine-tuning the network.
 
-flags.DEFINE_string('tf_initial_checkpoint', 'deeplabv3_pascal_trainval/model.ckpt', #'ckpt/model.ckpt-58337', #
+flags.DEFINE_string('tf_initial_checkpoint', './deeplab/initial_checkpoints/model.ckpt-63674',#'../deeplabv3_pascal_trainval/model.ckpt', #'ckpt/model.ckpt-58337', #
                     'The initial checkpoint in tensorflow format.')
 
 # Set to False if one does not want to re-use the trained classifier weights.
 flags.DEFINE_boolean('initialize_last_layer', False, 
                      'Initialize the last layer.')
 
-flags.DEFINE_boolean('last_layers_contain_logits_only', True,
+flags.DEFINE_boolean('last_layers_contain_logits_only', False,
                      'Only consider logits as last layers or not.')
 
 flags.DEFINE_integer('slow_start_step', 40000,
@@ -154,10 +157,10 @@ flags.DEFINE_float('slow_start_learning_rate', 0.0001,#0.00025,
 flags.DEFINE_boolean('fine_tune_batch_norm', False, 
                      'Fine tune the batch norm parameters or not.')
 
-flags.DEFINE_float('min_scale_factor', 1.0,
+flags.DEFINE_float('min_scale_factor', 0.5,
                    'Mininum scale factor for data augmentation.')
 
-flags.DEFINE_float('max_scale_factor', 1.0,
+flags.DEFINE_float('max_scale_factor', 2,
                    'Maximum scale factor for data augmentation.')
 
 flags.DEFINE_float('scale_factor_step_size', 1.0, 
@@ -166,15 +169,15 @@ flags.DEFINE_float('scale_factor_step_size', 1.0,
 # For `xception_65`, use atrous_rates = [12, 24, 36] if output_stride = 8, or
 # rates = [6, 12, 18] if output_stride = 16. For `mobilenet_v2`, use None. Note
 # one could use different atrous_rates/output_stride during training/evaluation.
-flags.DEFINE_multi_integer('atrous_rates', [6, 12, 18],
+flags.DEFINE_multi_integer('atrous_rates', [12, 24, 36],
                            'Atrous rates for atrous spatial pyramid pooling.')
 
-flags.DEFINE_integer('output_stride', 16,
+flags.DEFINE_integer('output_stride', 8,
                      'The ratio of input to output spatial resolution.')
 
 # Hard example mining related flags.
 flags.DEFINE_integer(
-    'hard_example_mining_step', 60000,
+    'hard_example_mining_step', 30000,
     'The training step in which exact hard example mining kicks off. Note we '
     'gradually reduce the mining percent to the specified '
     'top_k_percent_pixels. For example, if hard_example_mining_step=100K and '
@@ -183,7 +186,7 @@ flags.DEFINE_integer(
 
 
 flags.DEFINE_float(
-    'top_k_percent_pixels', 0.7,
+    'top_k_percent_pixels', 0.9,
     'The top k percent pixels (in terms of the loss values) used to compute '
     'loss during training. This is useful for hard pixel mining.')
 
@@ -193,7 +196,7 @@ flags.DEFINE_integer(
     'Steps to start quantized training. If < 0, will not quantize model.')
 
 # Dataset settings.
-flags.DEFINE_string('dataset', 'category4',
+flags.DEFINE_string('dataset', 'invitro',
                     'Name of the segmentation dataset.')
 
 flags.DEFINE_string('train_split', 'train',
@@ -373,6 +376,27 @@ def _log_summaries(input_image, label, num_of_classes, output):
     tf.summary.image('samples/%s' % common.OUTPUT_TYPE, summary_predictions)
 
 
+    # Image summary.
+    images_summary = tf.py_func(train_utils.inv_preprocess, [input_image, 1], tf.uint8)   
+    labels_summary = tf.py_func(train_utils.decode_labels, [tf.squeeze(label, [3])[0], 1], tf.uint8)
+    
+    out = tf.image.resize_bilinear(output, preprocess_utils.resolve_shape(label, 4)[1:3], align_corners=True)
+    preds = tf.expand_dims(tf.argmax(out, 3), -1)
+    
+    # sess = tf.Session()
+    # print(sess.run(out))
+    # print()
+    # print(sess.run(preds))
+
+    # spreds = tf.cast(preds * pixel_scaling, tf.uint8)
+    # spreds = tf.cast(preds, tf.uint8)
+
+    preds_summary = tf.py_func(train_utils.decode_labels, [tf.squeeze(preds, [3])[0], 1], tf.uint8)
+    
+    tf.summary.image('images', tf.concat([images_summary, tf.expand_dims (labels_summary, 0), tf.expand_dims(preds_summary, 0)], axis=2), max_outputs=2) # Concatenate row-wise.
+                      
+
+
 def _train_deeplab_model(iterator, num_of_classes, ignore_label):
   """Trains the deeplab model.
 
@@ -485,9 +509,11 @@ def main(unused_argv):
   print("crop size: ", FLAGS.train_crop_size)
   print("Model variant used: ",FLAGS.model_variant)
   print("Train log directory: ", FLAGS.train_logdir)
+  train_list = []
+  val_list = []
   count= 0
-  best_val_mean_iou = 0.80
-  dir_count = 1
+  best_val_mean_iou = 0.718
+  dir_path='deeplab/best_ckpt/'
 
   tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -570,17 +596,29 @@ def main(unused_argv):
                 print("learning rate too high. exiting!")
                 exit()
 
-            if count%500==0:
-              val_iou = subprocess.check_output([sys.executable, "deeplab/vis.py"])
-              val_mean_iou = float(val_iou.decode("utf-8").split('\n')[-2])
-              print("Mean IoU on validation dataset: ", val_mean_iou)
-              sys.stdout.flush()
+            try:
+              if count>5000 and count%200==0:
+                train_iou = subprocess.check_output([sys.executable, "deeplab/vistrain.py"])
+                val_iou = subprocess.check_output([sys.executable, "deeplab/vis.py"])
+                val_mean_iou = float(val_iou.decode("utf-8").split('\n')[-2])
+                val_list.append(val_mean_iou*100)
+                train_mean_iou=float(train_iou.decode("utf-8").split('\n')[-2])*100
+                train_list.append(train_mean_iou)
 
-              if  val_mean_iou > best_val_mean_iou:
-                dir_count+=1
-                print("Validation Mean IoU: ", val_mean_iou)
-                shutil.copytree('./xception/', './best_chkpt'+str(dir_count)+'/')
-                best_val_mean_iou = val_mean_iou
+                
+                print("Mean IoU on training dataset: ", train_mean_iou)
+                print("Mean IoU on validation dataset: ", val_mean_iou)
+                sys.stdout.flush()
+
+                if  val_mean_iou > best_val_mean_iou:
+                  if os.path.isdir(dir_path): shutil.rmtree(dir_path)
+		            
+                  print("Validation Mean IoU: ", val_mean_iou)
+                  shutil.copytree(FLAGS.train_logdir, dir_path)
+                  best_val_mean_iou = val_mean_iou
+            except:
+              print("Validation script returned non-zero status.")
+
 
 
 if __name__ == '__main__':

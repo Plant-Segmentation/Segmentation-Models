@@ -1,0 +1,10 @@
+DATASET:
+    MODEL_DIR:  './deeplab/frozen_graph/' 
+
+SEMANTIC SEG:
+    BASE_PATH: './deeplab/dataset'
+    RGB_PATH: 'JPEG/'
+    SEG_RESULT: 'labels/'
+    SEG_EXT: '.png'
+    RGB_EXT: '.jpg'
+    TEST_LIST: './deeplab/dataset/Segmentation-labels/test.txt'    

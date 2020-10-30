@@ -15,10 +15,41 @@
 """Utility functions for training."""
 
 import six
-
+import numpy as np
+import PIL.Image as img
+n_classes=4
 import tensorflow as tf
 from deeplab.core import preprocess_utils
 from config.config_plant import config as cfg
+from deeplab.utils import get_dataset_colormap
+
+def decode_labels(mask, num_images=1):
+    """Decode batch of segmentation masks.
+
+    Args:
+      mask: result of inference after taking argmax.
+      num_images: number of images to decode from the batch.
+    """
+    colored_label = get_dataset_colormap.label_to_color_image(mask)
+    pil_image = img.fromarray(colored_label.astype(dtype=np.uint8))
+    return pil_image
+
+def inv_preprocess(imgs, num_images):
+  """Preprocess batch of images.
+  Args:
+    imgs: batch of input images.
+    num_images: number of images.
+
+  Returns:
+    The batch of the size num_images with the same spatial dimensions as the input.
+  """
+  n, h, w, c = imgs.shape
+  assert(n >= num_images), 'Batch size %d should be greater or equal than number of images to save %d.' % (n, num_images)
+  outputs = np.zeros((num_images, h, w, 3), dtype=np.uint8)
+  for i in range(num_images):
+      outputs[i] = imgs[i][...,:3].astype(np.uint8)
+
+  return outputs
 
 def _div_maybe_zero(total_loss, num_present):
   """Normalizes the total loss with the number of present pixels."""
@@ -165,7 +196,7 @@ def get_model_init_fn(train_logdir,
   tf.logging.info('Initializing model from path: %s', tf_initial_checkpoint)
 
   # Variables that will not be restored.
-  exclude_list = ['logits', 'global_step']
+  exclude_list =  ['global_step'] #'logits'
   # exclude_list = ['_LOGITS_SCOPE_NAME', 'global_step']
   if not initialize_last_layer:
     exclude_list.extend(last_layers)
