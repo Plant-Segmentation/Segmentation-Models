@@ -19,7 +19,7 @@ h5py==2.10.0
 idna==2.9
 imageio==2.8.0
 imbalanced-learn==0.6.2
-joblib==0.14.1
+joblib==1.2.0
 Keras-Preprocessing==1.1.0
 kiwisolver==1.2.0
 mahotas==1.4.9
